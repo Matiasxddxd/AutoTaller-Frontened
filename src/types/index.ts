@@ -22,6 +22,7 @@ export interface Cliente {
   total_vehiculos?: number
   total_ordenes?: number
   created_at: string
+  instagram?: string
 }
 
 export interface Vehiculo {
