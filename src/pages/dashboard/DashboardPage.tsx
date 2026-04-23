@@ -31,21 +31,21 @@ export const DashboardPage = () => {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Dashboard"
-        subtitle={`Período: ${d.periodo.mes}/${d.periodo.anio}`}
+        subtitle={`Período: ${d.periodo?.mes ?? ''}/${d.periodo?.anio ?? ''}`}
       />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Ingresos del mes"
-          value={formatMoney(d.ingresos.total_mes)}
+          value={formatMoney(d.ingresos?.total_mes ?? 0)}
           sub="Cotizaciones aprobadas"
           color="text-accent-green"
         />
         <StatCard
           label="Promedio por orden"
-          value={formatMoney(d.ingresos.promedio_orden)}
-          sub={`${d.ingresos.total_cotizaciones} cotizaciones`}
+          value={formatMoney(d.ingresos?.promedio_orden ?? 0)}
+          sub={`${d.ingresos?.total_cotizaciones ?? 0} cotizaciones`}
         />
         <StatCard
           label="Órdenes activas"
@@ -97,7 +97,7 @@ export const DashboardPage = () => {
             Rendimiento mecánicos
           </h2>
           <div className="space-y-3">
-            {d.rendimiento_mecanicos.length === 0 && (
+            {d.rendimiento_mecanicos.length === 0 && (  
               <p className="text-xs text-ink-muted text-center py-6">Sin datos</p>
             )}
             {(d.rendimiento_mecanicos ?? []).map((m, i) => (
