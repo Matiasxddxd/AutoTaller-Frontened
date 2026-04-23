@@ -22,12 +22,11 @@ export const DashboardPage = () => {
   if (isLoading) return <FullPageSpinner />
 
   const d = data!
-  const chartData = d.ordenes_por_estado.map(o => ({
-    name:  ORDER_STATUS[o.estado]?.label || o.estado,
-    total: o.total,
-    estado: o.estado,
-  }))
-
+  const chartData = (d.ordenes_por_estado ?? []).map(o => ({
+  name:  ORDER_STATUS[o.estado]?.label || o.estado,
+  total: o.total,
+  estado: o.estado,
+})) || []
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
@@ -50,13 +49,13 @@ export const DashboardPage = () => {
         />
         <StatCard
           label="Órdenes activas"
-          value={d.ordenes_por_estado.find(o => o.estado === 'en_proceso')?.total ?? 0}
+          value={(d.ordenes_por_estado ?? []).find(o => o.estado === 'en_proceso')?.total || 0}
           sub="En proceso ahora"
           color="text-brand-glow"
         />
         <StatCard
           label="Repuestos con stock bajo"
-          value={d.alertas_stock_bajo.length}
+          value={(d.alertas_stock_bajo?.length ?? 0)}
           sub="Requieren reposición"
           color={d.alertas_stock_bajo.length > 0 ? 'text-accent-amber' : 'text-ink'}
         />
@@ -101,7 +100,7 @@ export const DashboardPage = () => {
             {d.rendimiento_mecanicos.length === 0 && (
               <p className="text-xs text-ink-muted text-center py-6">Sin datos</p>
             )}
-            {d.rendimiento_mecanicos.map((m, i) => (
+            {(d.rendimiento_mecanicos ?? []).map((m, i) => (
               <div key={i} className="flex items-center justify-between py-2 border-b border-line last:border-0">
                 <div>
                   <p className="text-sm text-ink font-medium">{m.nombre}</p>
@@ -145,6 +144,7 @@ export const DashboardPage = () => {
           </div>
         </div>
       )}
+      return (
     </div>
   )
 }
