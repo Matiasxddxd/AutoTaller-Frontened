@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Users, Phone, Mail, Car, ChevronRight } from 'lucide-react'
+import { Plus, Users, Phone, Mail, Car, Trash2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { clientesApi } from '../../api'
 import {
-  PageHeader, EmptyState, FullPageSpinner, Modal, Spinner, SearchInput,
+  PageHeader, EmptyState, FullPageSpinner, Modal, Spinner, SearchInput, ConfirmDialog,
 } from '../../components/ui'
 import { formatDate } from '../../lib/utils'
 import type { Cliente } from '../../types'
+import { useAuthStore } from '../../stores/authStore'
 
 const ClientModal = ({ open, onClose, initial }: { open: boolean; onClose: () => void; initial?: Cliente }) => {
   const qc = useQueryClient()
@@ -49,6 +50,13 @@ const ClientModal = ({ open, onClose, initial }: { open: boolean; onClose: () =>
             <input type="email" className="input" placeholder="juan@email.cl" {...register('email')} />
           </div>
           <div className="col-span-2">
+            <label className="label">Instagram <span className="text-ink-faint normal-case font-normal">(opcional)</span></label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint text-sm">@</span>
+              <input className="input pl-7" placeholder="usuario_instagram" {...register('instagram')} />
+            </div>
+          </div>
+          <div className="col-span-2">
             <label className="label">Dirección</label>
             <input className="input" placeholder="Av. Principal 1234" {...register('direccion')} />
           </div>
@@ -73,11 +81,23 @@ export const ClientsPage = () => {
   const [page,     setPage]     = useState(1)
   const [modal,    setModal]    = useState(false)
   const [editing,  setEditing]  = useState<Cliente | undefined>()
+  const [deleting, setDeleting] = useState<Cliente | null>(null)
   const navigate = useNavigate()
+  const qc = useQueryClient()
+  const user = useAuthStore(s => s.user)
 
   const { data, isLoading } = useQuery({
     queryKey: ['clients', search, page],
-    queryFn:  () => clientesApi.list({ search, page, limit: 20 }),
+    queryFn: () => clientesApi.list({ search, page, limit: 20 }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => clientesApi.delete(id),
+    onSuccess: () => {
+      toast.success('Cliente eliminado')
+      qc.invalidateQueries({ queryKey: ['clients'] })
+      setDeleting(null)
+    },
   })
 
   const clients = data?.data ?? []
@@ -95,9 +115,7 @@ export const ClientsPage = () => {
         }
       />
 
-      <div className="flex items-center gap-3">
-        <SearchInput value={search} onChange={v => { setSearch(v); setPage(1) }} placeholder="Buscar por nombre, RUT, email..." />
-      </div>
+      <SearchInput value={search} onChange={v => { setSearch(v); setPage(1) }} placeholder="Buscar por nombre, RUT, email..." />
 
       {isLoading ? <FullPageSpinner /> : (
         <div className="card overflow-hidden">
@@ -109,6 +127,7 @@ export const ClientsPage = () => {
                 <tr>
                   <th className="th text-left">Cliente</th>
                   <th className="th text-left">Contacto</th>
+                  <th className="th text-left">Instagram</th>
                   <th className="th text-left">RUT</th>
                   <th className="th text-center">Vehículos</th>
                   <th className="th text-center">Órdenes</th>
@@ -118,11 +137,7 @@ export const ClientsPage = () => {
               </thead>
               <tbody>
                 {clients.map(c => (
-                  <tr
-                    key={c.id}
-                    className="table-row cursor-pointer"
-                    onClick={() => navigate(`/clients/${c.id}`)}
-                  >
+                  <tr key={c.id} className="table-row cursor-pointer" onClick={() => navigate(`/clients/${c.id}`)}>
                     <td className="td">
                       <p className="font-medium text-ink">{c.nombre}</p>
                       {c.direccion && <p className="text-xs text-ink-faint">{c.direccion}</p>}
@@ -139,6 +154,9 @@ export const ClientsPage = () => {
                         </div>
                       )}
                     </td>
+                    <td className="td text-xs text-ink-muted">
+                      {(c as any).instagram ? `@${(c as any).instagram}` : '—'}
+                    </td>
                     <td className="td font-mono text-xs text-ink-muted">{c.rut || '—'}</td>
                     <td className="td text-center">
                       <span className="inline-flex items-center gap-1 text-xs text-ink-muted">
@@ -148,12 +166,22 @@ export const ClientsPage = () => {
                     <td className="td text-center text-xs text-ink-muted">{c.total_ordenes ?? 0}</td>
                     <td className="td text-xs text-ink-faint">{formatDate(c.created_at)}</td>
                     <td className="td">
-                      <button
-                        onClick={e => { e.stopPropagation(); setEditing(c); setModal(true) }}
-                        className="btn-ghost py-1 px-2 text-xs"
-                      >
-                        Editar
-                      </button>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={e => { e.stopPropagation(); setEditing(c); setModal(true) }}
+                          className="btn-ghost py-1 px-2 text-xs"
+                        >
+                          Editar
+                        </button>
+                        {user?.role === 'admin' && (
+                          <button
+                            onClick={e => { e.stopPropagation(); setDeleting(c) }}
+                            className="btn-ghost py-1 px-2 text-xs text-accent-red hover:bg-accent-red/10"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -163,22 +191,24 @@ export const ClientsPage = () => {
         </div>
       )}
 
-      {/* Paginación */}
       {total > 20 && (
         <div className="flex justify-center gap-2">
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ghost">
-            Anterior
-          </button>
-          <span className="text-sm text-ink-muted flex items-center">
-            Página {page} de {Math.ceil(total / 20)}
-          </span>
-          <button onClick={() => setPage(p => p + 1)} disabled={page * 20 >= total} className="btn-ghost">
-            Siguiente
-          </button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ghost">Anterior</button>
+          <span className="text-sm text-ink-muted flex items-center">Página {page} de {Math.ceil(total / 20)}</span>
+          <button onClick={() => setPage(p => p + 1)} disabled={page * 20 >= total} className="btn-ghost">Siguiente</button>
         </div>
       )}
 
       <ClientModal open={modal} onClose={() => setModal(false)} initial={editing} />
+
+      <ConfirmDialog
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        onConfirm={() => deleting && deleteMutation.mutate(deleting.id)}
+        title="Eliminar cliente"
+        message={`¿Estás seguro que deseas eliminar a "${deleting?.nombre}"? Esta acción no se puede deshacer.`}
+        loading={deleteMutation.isPending}
+      />
     </div>
   )
 }

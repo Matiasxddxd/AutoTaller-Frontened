@@ -36,10 +36,11 @@ export const cotizacionesApi = {
   list: (params?: { estado?: QuoteStatus; cliente_id?: string }) =>
     apiGet<Cotizacion[]>('/quotes', params),
   get: (id: string) => apiGet<Cotizacion>(`/quotes/${id}`),
-  create: (data: { cliente_id: string; vehiculo_id: string; items: CotizacionItem[]; notas?: string; vencimiento?: string }) =>
+  create: (data: { cliente_id: string; vehiculo_id: string; items: CotizacionItem[]; notas?: string; vencimiento?: string; incluye_iva?: boolean }) =>
     apiPost<Cotizacion>('/quotes', data),
   updateStatus: (id: string, estado: QuoteStatus) =>
     apiPatch<Cotizacion>(`/quotes/${id}/status`, { estado }),
+  delete: (id: string) => apiDelete(`/quotes/${id}`),
   downloadPdf: async (id: string, filename: string) => {
     const res = await api.get(`/quotes/${id}/pdf`, { responseType: 'blob' })
     const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))

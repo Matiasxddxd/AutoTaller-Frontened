@@ -3,13 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, FileText, Download, CheckCircle, XCircle, Trash2 } from 'lucide-react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { cotizacionesApi, clientesApi, vehiculosApi, repuestosApi } from '../../api'
+import { cotizacionesApi, clientesApi, vehiculosApi } from '../../api'
 import {
   PageHeader, EmptyState, FullPageSpinner, Modal, Spinner,
-  QuoteBadge, SearchInput,
+  QuoteBadge, SearchInput, ConfirmDialog,
 } from '../../components/ui'
-import { formatDate, formatMoney, QUOTE_STATUS } from '../../lib/utils'
-import type { Cotizacion, CotizacionItem, QuoteStatus } from '../../types'
+import { formatDate, formatMoney } from '../../lib/utils'
+import { useAuthStore } from '../../stores/authStore'
+import type { CotizacionItem, QuoteStatus } from '../../types'
 
 const IVA = 0.19
 
@@ -18,6 +19,7 @@ interface QuoteForm {
   vehiculo_id: string
   notas: string
   vencimiento: string
+  incluye_iva: boolean
   items: CotizacionItem[]
 }
 
@@ -26,29 +28,37 @@ const NewQuoteModal = ({ open, onClose }: { open: boolean; onClose: () => void }
   const [selectedClienteId, setSelectedClienteId] = useState('')
   const qc = useQueryClient()
 
-  const { register, handleSubmit, watch, setValue, control, reset, formState: { errors } } = useForm<QuoteForm>({
-    defaultValues: { items: [{ tipo: 'mano_de_obra', descripcion: '', cantidad: 1, precio_unitario: 0 }] },
+  const { register, handleSubmit, watch, setValue, control, reset } = useForm<QuoteForm>({
+    defaultValues: {
+      incluye_iva: true,
+      items: [{ tipo: 'mano_de_obra', descripcion: '', cantidad: 1, precio_unitario: 0 }]
+    },
   })
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
   const items = watch('items')
+  const incluyeIva = watch('incluye_iva')
 
   const subtotal = items.reduce((s, i) => s + (Number(i.cantidad) * Number(i.precio_unitario)), 0)
-  const iva      = subtotal * IVA
-  const total    = subtotal + iva
+  const iva = incluyeIva ? subtotal * IVA : 0
+  const total = subtotal + iva
 
   const { data: clientes = [] } = useQuery({
     queryKey: ['clients-search', clienteSearch],
-    queryFn:  () => clientesApi.list({ search: clienteSearch, limit: 6 }).then(r => r.data),
-    enabled:  clienteSearch.length > 1,
+    queryFn: () => clientesApi.list({ search: clienteSearch, limit: 6 }).then(r => r.data),
+    enabled: clienteSearch.length > 1,
   })
   const { data: vehiculos = [] } = useQuery({
     queryKey: ['vehicles-by-client', selectedClienteId],
-    queryFn:  () => vehiculosApi.list({ cliente_id: selectedClienteId }),
-    enabled:  !!selectedClienteId,
+    queryFn: () => vehiculosApi.list({ cliente_id: selectedClienteId }),
+    enabled: !!selectedClienteId,
   })
 
   const mutation = useMutation({
-    mutationFn: (data: QuoteForm) => cotizacionesApi.create(data),
+    mutationFn: (data: QuoteForm) => cotizacionesApi.create({
+      ...data,
+      // Pasar IVA calculado al backend
+      _iva_override: incluyeIva ? undefined : 0,
+    } as any),
     onSuccess: () => {
       toast.success('Cotización creada')
       qc.invalidateQueries({ queryKey: ['quotes'] })
@@ -59,7 +69,6 @@ const NewQuoteModal = ({ open, onClose }: { open: boolean; onClose: () => void }
   return (
     <Modal open={open} onClose={onClose} title="Nueva cotización" size="xl">
       <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-5">
-        {/* Cliente + Vehículo */}
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
             <label className="label">Cliente *</label>
@@ -95,21 +104,17 @@ const NewQuoteModal = ({ open, onClose }: { open: boolean; onClose: () => void }
           </div>
         </div>
 
-        {/* Items */}
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className="label mb-0">Ítems</label>
-            <button
-              type="button"
+            <button type="button"
               onClick={() => append({ tipo: 'repuesto', descripcion: '', cantidad: 1, precio_unitario: 0 })}
               className="btn-ghost text-xs"
             >
               <Plus size={12} /> Agregar ítem
             </button>
           </div>
-
           <div className="space-y-2">
-            {/* Header */}
             <div className="grid grid-cols-12 gap-2 px-2 text-xs text-ink-faint">
               <span className="col-span-1">Tipo</span>
               <span className="col-span-5">Descripción</span>
@@ -118,7 +123,6 @@ const NewQuoteModal = ({ open, onClose }: { open: boolean; onClose: () => void }
               <span className="col-span-1 text-right">Total</span>
               <span className="col-span-1" />
             </div>
-
             {fields.map((field, i) => {
               const rowTotal = Number(items[i]?.cantidad ?? 0) * Number(items[i]?.precio_unitario ?? 0)
               return (
@@ -131,20 +135,15 @@ const NewQuoteModal = ({ open, onClose }: { open: boolean; onClose: () => void }
                     </select>
                   </div>
                   <div className="col-span-5">
-                    <input className="input py-1.5 text-xs" placeholder="Descripción..."
-                      {...register(`items.${i}.descripcion`, { required: true })} />
+                    <input className="input py-1.5 text-xs" placeholder="Descripción..." {...register(`items.${i}.descripcion`, { required: true })} />
                   </div>
                   <div className="col-span-2">
-                    <input type="number" min="0.01" step="0.01" className="input py-1.5 text-xs text-right"
-                      {...register(`items.${i}.cantidad`)} />
+                    <input type="number" min="0.01" step="0.01" className="input py-1.5 text-xs text-right" {...register(`items.${i}.cantidad`)} />
                   </div>
                   <div className="col-span-2">
-                    <input type="number" min="0" step="1" className="input py-1.5 text-xs text-right"
-                      {...register(`items.${i}.precio_unitario`)} />
+                    <input type="number" min="0" step="1" className="input py-1.5 text-xs text-right" {...register(`items.${i}.precio_unitario`)} />
                   </div>
-                  <div className="col-span-1 text-right text-xs font-medium text-ink">
-                    {formatMoney(rowTotal)}
-                  </div>
+                  <div className="col-span-1 text-right text-xs font-medium text-ink">{formatMoney(rowTotal)}</div>
                   <div className="col-span-1 flex justify-end">
                     {fields.length > 1 && (
                       <button type="button" onClick={() => remove(i)} className="text-ink-faint hover:text-accent-red p-1">
@@ -157,15 +156,17 @@ const NewQuoteModal = ({ open, onClose }: { open: boolean; onClose: () => void }
             })}
           </div>
 
-          {/* Totales */}
-          <div className="flex justify-end mt-3">
+          {/* Toggle IVA + Totales */}
+          <div className="flex justify-end mt-3 gap-4 items-end">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-ink-muted">Incluir IVA (19%)</label>
+              <input type="checkbox" {...register('incluye_iva')} className="w-4 h-4 accent-brand" />
+            </div>
             <div className="bg-surface-2 rounded-xl p-4 min-w-48 space-y-1.5 text-sm">
-              <div className="flex justify-between text-ink-muted">
-                <span>Subtotal</span><span>{formatMoney(subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-ink-muted">
-                <span>IVA (19%)</span><span>{formatMoney(iva)}</span>
-              </div>
+              <div className="flex justify-between text-ink-muted"><span>Subtotal</span><span>{formatMoney(subtotal)}</span></div>
+              {incluyeIva && (
+                <div className="flex justify-between text-ink-muted"><span>IVA (19%)</span><span>{formatMoney(iva)}</span></div>
+              )}
               <div className="flex justify-between font-semibold text-ink border-t border-line pt-1.5 mt-1">
                 <span>Total</span><span className="text-accent-green">{formatMoney(total)}</span>
               </div>
@@ -190,22 +191,24 @@ const NewQuoteModal = ({ open, onClose }: { open: boolean; onClose: () => void }
 }
 
 const FILTER_TABS: { label: string; value: QuoteStatus | 'all' }[] = [
-  { label: 'Todas',     value: 'all' },
-  { label: 'Borrador',  value: 'borrador' },
-  { label: 'Enviadas',  value: 'enviada' },
+  { label: 'Todas', value: 'all' },
+  { label: 'Borrador', value: 'borrador' },
+  { label: 'Enviadas', value: 'enviada' },
   { label: 'Aprobadas', value: 'aprobada' },
-  { label: 'Rechazadas',value: 'rechazada' },
+  { label: 'Rechazadas', value: 'rechazada' },
 ]
 
 export const QuotesPage = () => {
-  const [filter, setFilter] = useState<QuoteStatus | 'all'>('all')
-  const [modal,  setModal]  = useState(false)
-  const [search, setSearch] = useState('')
+  const [filter,   setFilter]   = useState<QuoteStatus | 'all'>('all')
+  const [modal,    setModal]    = useState(false)
+  const [search,   setSearch]   = useState('')
+  const [deleting, setDeleting] = useState<any>(null)
   const qc = useQueryClient()
+  const user = useAuthStore(s => s.user)
 
   const { data: quotes = [], isLoading } = useQuery({
     queryKey: ['quotes', filter],
-    queryFn:  () => cotizacionesApi.list(filter !== 'all' ? { estado: filter } : undefined),
+    queryFn: () => cotizacionesApi.list(filter !== 'all' ? { estado: filter } : undefined),
   })
 
   const statusMutation = useMutation({
@@ -214,6 +217,15 @@ export const QuotesPage = () => {
     onSuccess: () => {
       toast.success('Cotización actualizada')
       qc.invalidateQueries({ queryKey: ['quotes'] })
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => cotizacionesApi.delete(id),
+    onSuccess: () => {
+      toast.success('Cotización eliminada')
+      qc.invalidateQueries({ queryKey: ['quotes'] })
+      setDeleting(null)
     },
   })
 
@@ -281,14 +293,12 @@ export const QuotesPage = () => {
                     <td className="td text-xs text-ink-faint">{formatDate(q.created_at)}</td>
                     <td className="td">
                       <div className="flex items-center justify-center gap-1">
-                        {/* Descargar PDF */}
                         <button
                           onClick={() => cotizacionesApi.downloadPdf(q.id, `cotizacion-${q.id.slice(0,8)}.pdf`)}
                           className="btn-ghost p-1.5" title="Descargar PDF"
                         >
                           <Download size={13} />
                         </button>
-                        {/* Aprobar */}
                         {(q.estado === 'enviada' || q.estado === 'borrador') && (
                           <button
                             onClick={() => statusMutation.mutate({ id: q.id, estado: 'aprobada' })}
@@ -297,13 +307,20 @@ export const QuotesPage = () => {
                             <CheckCircle size={13} />
                           </button>
                         )}
-                        {/* Rechazar */}
                         {(q.estado === 'enviada' || q.estado === 'borrador') && (
                           <button
                             onClick={() => statusMutation.mutate({ id: q.id, estado: 'rechazada' })}
                             className="btn-ghost p-1.5 text-accent-red hover:bg-accent-red/10" title="Rechazar"
                           >
                             <XCircle size={13} />
+                          </button>
+                        )}
+                        {user?.role === 'admin' && (
+                          <button
+                            onClick={() => setDeleting(q)}
+                            className="btn-ghost p-1.5 text-accent-red hover:bg-accent-red/10" title="Eliminar"
+                          >
+                            <Trash2 size={13} />
                           </button>
                         )}
                       </div>
@@ -317,6 +334,15 @@ export const QuotesPage = () => {
       )}
 
       <NewQuoteModal open={modal} onClose={() => setModal(false)} />
+
+      <ConfirmDialog
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        onConfirm={() => deleting && deleteMutation.mutate(deleting.id)}
+        title="Eliminar cotización"
+        message={`¿Eliminar la cotización #${deleting?.id?.slice(0,8)} de ${deleting?.cliente_nombre}? Esta acción no se puede deshacer.`}
+        loading={deleteMutation.isPending}
+      />
     </div>
   )
 }
