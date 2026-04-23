@@ -21,7 +21,7 @@ export const DashboardPage = () => {
 
   if (isLoading) return <FullPageSpinner />
 
-  const d = data!
+  const d: any = data ?? {}
   const chartData = (d.ordenes_por_estado ?? []).map(o => ({
   name:  ORDER_STATUS[o.estado]?.label || o.estado,
   total: o.total,
@@ -57,7 +57,7 @@ export const DashboardPage = () => {
           label="Repuestos con stock bajo"
           value={(d.alertas_stock_bajo?.length ?? 0)}
           sub="Requieren reposición"
-          color={d.alertas_stock_bajo.length > 0 ? 'text-accent-amber' : 'text-ink'}
+          color={(d.alertas_stock_bajo?.length ?? 0) > 0 ? 'text-accent-amber' : 'text-ink'}
         />
       </div>
 
@@ -131,7 +131,7 @@ export const DashboardPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {d.alertas_stock_bajo.map(r => (
+                {(d.alertas_stock_bajo ?? []).map(r => (
                   <tr key={r.id} className="table-row">
                     <td className="td font-medium">{r.nombre}</td>
                     <td className="td font-mono text-xs text-ink-muted">{r.codigo_sku || '—'}</td>
