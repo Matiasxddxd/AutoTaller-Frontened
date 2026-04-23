@@ -1,9 +1,9 @@
-import { Navigate } from 'react-router-dom'
+import { Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 import type { UserRole } from '../../types'
 
 interface Props {
-  children: React.ReactNode
+  children?: React.ReactNode
   roles?: UserRole[]
 }
 
@@ -16,5 +16,5 @@ export const ProtectedRoute = ({ children, roles }: Props) => {
     return <Navigate to="/orders" replace />
   }
 
-  return <>{children}</>
+  return children ? <>{children}</> : <Outlet />
 }
