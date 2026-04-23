@@ -22,7 +22,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route element={<ProtectedRoute><></></ProtectedRoute>}>
+          <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard"    element={<DashboardPage />} />
@@ -40,7 +40,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>
-      <Toaster position="bottom-right" toastOptions={{ style: { background: '#1e1e2e', color: '#cdd6f4', border: '1px solid #313244' } }} />
+      <Toaster position="bottom-right" toastOptions={{ style: { background: '#1e1e2e', color: '#cdd6f4', border: '1px solid #313244'}}}/>
     </QueryClientProvider>
   )
 }

@@ -13,8 +13,10 @@
   "build": {
     "appId": "cl.autotaller.app",
     "productName": "AutoTaller",
-     "asar": false,
-    "directories": { "output": "release" },
+    "asar": false,
+    "directories": {
+      "output": "release"
+    },
     "win": {
       "target": "nsis",
       "icon": "electron/icon.ico",
@@ -42,7 +44,7 @@
     "zustand": "^4.5.4"
   },
   "devDependencies": {
-    "@types/react": "^18.3.3",
+    "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
