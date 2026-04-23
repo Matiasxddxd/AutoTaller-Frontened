@@ -97,7 +97,7 @@ export const DashboardPage = () => {
             Rendimiento mecánicos
           </h2>
           <div className="space-y-3">
-            {d.rendimiento_mecanicos.length === 0 && (  
+            {(d.rendimiento_mecanicos?.length ?? 0) === 0 && (  
               <p className="text-xs text-ink-muted text-center py-6">Sin datos</p>
             )}
             {(d.rendimiento_mecanicos ?? []).map((m, i) => (
@@ -114,7 +114,7 @@ export const DashboardPage = () => {
       </div>
 
       {/* Alertas stock bajo */}
-      {d.alertas_stock_bajo.length > 0 && (
+      {(d.alertas_stock_bajo?.length ?? 0) > 0 && (
         <div className="card p-5">
           <h2 className="text-sm font-semibold text-ink mb-4 flex items-center gap-2">
             <AlertTriangle size={15} className="text-accent-amber" />
